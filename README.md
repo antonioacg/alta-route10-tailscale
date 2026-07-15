@@ -26,7 +26,9 @@ ssh root@192.168.1.1
 
 Then download and run the installer:
 ```sh
-wget -O /tmp/setup.sh https://codeberg.org/CookieTyrant/alta-route10-tailscale/raw/branch/main/setup.sh
+wget -O /tmp/setup.sh https://raw.githubusercontent.com/antonioacg/alta-route10-tailscale/main/setup.sh
+# Self-hosted Headscale (this fork): prefix with your control-plane URL:
+#   LOGIN_SERVER=https://vpn.example.com sh /tmp/setup.sh
 sh /tmp/setup.sh
 ```
 
@@ -133,7 +135,9 @@ Firmware updates may wipe `/etc/init.d/` and `/cfg/`. After updating:
 
 ```sh
 # Re-run the installer (will re-authenticate if state was wiped)
-wget -O /tmp/setup.sh https://codeberg.org/CookieTyrant/alta-route10-tailscale/raw/branch/main/setup.sh
+wget -O /tmp/setup.sh https://raw.githubusercontent.com/antonioacg/alta-route10-tailscale/main/setup.sh
+# Self-hosted Headscale (this fork): prefix with your control-plane URL:
+#   LOGIN_SERVER=https://vpn.example.com sh /tmp/setup.sh
 sh /tmp/setup.sh
 ```
 

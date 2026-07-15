@@ -325,12 +325,22 @@ echo "  You need to authenticate this device with Tailscale."
 echo "  Choose a method:"
 echo ""
 echo "  1) Login URL (opens in your browser)"
-echo "  2) Auth key (from https://login.tailscale.com/admin/settings/keys)"
+echo "  2) Auth key (from https://login.tailscale.com/admin/settings/keys,"
+echo "     or a Headscale pre-auth key when LOGIN_SERVER is set)"
 echo ""
 printf "  Method [1/2]: "
 read -r AUTH_METHOD
 
 UP_FLAGS="--netfilter-mode=off"
+
+# Fork adaptation (EPIC-01): self-hosted control plane. Set LOGIN_SERVER to your
+# Headscale URL before running (e.g. `LOGIN_SERVER=https://vpn.example.com sh setup.sh`).
+# Empty = upstream behavior (Tailscale SaaS). A Headscale pre-auth key minted with
+# --tags applies the node tag server-side — no extra flags needed here.
+if [ -n "${LOGIN_SERVER:-}" ]; then
+    UP_FLAGS="$UP_FLAGS --login-server=$LOGIN_SERVER"
+    INFO "Using self-hosted control plane: $LOGIN_SERVER"
+fi
 
 if [ "$MODE" = "subnet" ] || [ "$MODE" = "both" ]; then
     UP_FLAGS="$UP_FLAGS --advertise-routes=$SUBNET"
@@ -357,7 +367,8 @@ else
     # shellcheck disable=SC2086
     "$BIN_DIR/tailscale" up $UP_FLAGS 2>&1 | while read -r line; do
         echo "  $line"
-        if echo "$line" | grep -q "https://login.tailscale.com"; then
+        # SaaS prints login.tailscale.com/a/…; Headscale prints <server>/register/…
+        if echo "$line" | grep -qE "https://[^ ]+/(a|register)/"; then
             echo ""
             echo "  >>> Open this URL in your browser to log in <<<"
             echo ""
