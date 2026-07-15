@@ -9,7 +9,9 @@ ENV_FILE="/cfg/tailscale.env"
 POST_CFG="/cfg/tailscale-post-cfg.sh"
 UPDATE_SCRIPT="/cfg/tailscale-update.sh"
 INIT_SCRIPT="/etc/init.d/tailscale"
-WAN_IFACE="eth3"
+# WAN egress iface for exit-node MASQUERADE. Route10's live WAN is the PPPoE
+# link over the ODI stick (eth4); eth3 is the idle Huawei backup. Env-overridable.
+WAN_IFACE="${WAN_IFACE:-pppoe-wan3}"
 LAN_IFACE="br-lan"
 
 OK()   { echo "  [OK] $1"; }
@@ -301,6 +303,7 @@ TAILSCALE_VERSION=${VERSION}
 MODE=${MODE}
 SUBNET=${SUBNET}
 BIN_DIR=${BIN_DIR}
+WAN_IFACE=${WAN_IFACE}
 EOF
 OK "Config written"
 
@@ -412,6 +415,7 @@ cat > "$POST_CFG" << 'BOOTSCRIPT'
 [ -f /cfg/tailscale.env ] || exit 0
 . /cfg/tailscale.env
 BIN_DIR=${BIN_DIR:-/a/tailscale}
+WAN_IFACE=${WAN_IFACE:-pppoe-wan3}
 [ -x "$BIN_DIR/tailscaled" ] || exit 0
 
 logger -t ts-boot "starting..."
@@ -469,7 +473,7 @@ if ! iptables -v -L INPUT -n 2>/dev/null | grep -q tailscale0; then
     iptables -I FORWARD -i tailscale0 -j ACCEPT
     iptables -t nat -I POSTROUTING -s 100.64.0.0/10 -o br-lan -j MASQUERADE
     if [ "$MODE" = "exit" ] || [ "$MODE" = "both" ]; then
-        iptables -t nat -I POSTROUTING -s 100.64.0.0/10 -o eth3 -j MASQUERADE
+        iptables -t nat -I POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE
     fi
     logger -t ts-boot "iptables rules added"
 fi
@@ -485,7 +489,7 @@ if ! ping -c1 -W3 8.8.8.8 >/dev/null 2>&1; then
     iptables -D FORWARD -o tailscale0 -j ACCEPT 2>/dev/null
     iptables -D FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
     iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o br-lan -j MASQUERADE 2>/dev/null
-    iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o eth3 -j MASQUERADE 2>/dev/null
+    iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null
     exit 1
 fi
 
