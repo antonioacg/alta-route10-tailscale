@@ -13,6 +13,7 @@ INIT_SCRIPT="/etc/init.d/tailscale"
 # link over the ODI stick (eth4); eth3 is the idle Huawei backup. Env-overridable.
 WAN_IFACE="${WAN_IFACE:-pppoe-wan3}"
 LAN_IFACE="br-lan"
+TS_ULA6="fd7a:115c:a1e0::/48"   # Tailscale's IPv6 ULA (the tailnet source range)
 
 OK()   { echo "  [OK] $1"; }
 WARN() { echo "  [!!] $1"; }
@@ -40,6 +41,10 @@ cleanup_iptables() {
     iptables -D FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
     iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null
     iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null
+    ip6tables -D INPUT -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -D FORWARD -o tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -D FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -t nat -D POSTROUTING -s "$TS_ULA6" -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null
 }
 
 cleanup_ip_rules() {
@@ -56,6 +61,14 @@ add_iptables() {
     if [ "$MODE" = "exit" ] || [ "$MODE" = "both" ]; then
         iptables -t nat -I POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE
     fi
+    # IPv6 dual-stack: allow tailscale0 forwarding + NAT66 the tailnet ULA out to
+    # the LAN, giving the v6 subnet route a return path (mirrors the v4 br-lan
+    # rule — LAN hosts reply on-link to us instead of needing a tailnet route).
+    # No WAN v6 exit MASQUERADE: the ISP GUA is a churning /60, not worth it.
+    ip6tables -I INPUT -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -I FORWARD -o tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -I FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -t nat -I POSTROUTING -s "$TS_ULA6" -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null
 }
 
 write_init_script() {
@@ -475,6 +488,11 @@ if ! iptables -v -L INPUT -n 2>/dev/null | grep -q tailscale0; then
     if [ "$MODE" = "exit" ] || [ "$MODE" = "both" ]; then
         iptables -t nat -I POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE
     fi
+    # IPv6 dual-stack (subnet return path via NAT66 to the LAN; no WAN v6 exit)
+    ip6tables -I INPUT -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -I FORWARD -o tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -I FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -t nat -I POSTROUTING -s fd7a:115c:a1e0::/48 -o br-lan -j MASQUERADE 2>/dev/null
     logger -t ts-boot "iptables rules added"
 fi
 
@@ -490,6 +508,10 @@ if ! ping -c1 -W3 8.8.8.8 >/dev/null 2>&1; then
     iptables -D FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
     iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o br-lan -j MASQUERADE 2>/dev/null
     iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null
+    ip6tables -D INPUT -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -D FORWARD -o tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -D FORWARD -i tailscale0 -j ACCEPT 2>/dev/null
+    ip6tables -t nat -D POSTROUTING -s fd7a:115c:a1e0::/48 -o br-lan -j MASQUERADE 2>/dev/null
     exit 1
 fi
 
