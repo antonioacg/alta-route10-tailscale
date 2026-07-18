@@ -347,7 +347,12 @@ echo ""
 printf "  Method [1/2]: "
 read -r AUTH_METHOD
 
-UP_FLAGS="--netfilter-mode=off"
+# --accept-dns=false: this router runs its own dnsmasq. Letting Tailscale manage
+# /etc/resolv.conf repoints the router's OWN lookups at 100.100.100.100 (MagicDNS),
+# which a subnet router (netfilter-mode=off) doesn't actually serve — so the router
+# resolves nothing, including manage.alta.inc, which silently blanks the Alta cloud
+# portal. LAN clients are unaffected (they use dnsmasq/AdGuard). Accept routes, never DNS.
+UP_FLAGS="--netfilter-mode=off --accept-dns=false"
 
 # Fork adaptation (EPIC-01): self-hosted control plane. Set LOGIN_SERVER to your
 # Headscale URL before running (e.g. `LOGIN_SERVER=https://vpn.example.com sh setup.sh`).
