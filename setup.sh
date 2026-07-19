@@ -521,6 +521,15 @@ if ! ping -c1 -W3 8.8.8.8 >/dev/null 2>&1; then
 fi
 
 logger -t ts-boot "running, internet OK"
+
+# --- Mesh subnet-router forwarding fix ---------------------------------------
+# GRO on br-lan coalesces WireGuard-tunneled segments into oversized frames that
+# blackhole when re-segmented for the 1280 tailscale MTU, so bulk mesh->LAN
+# transfers die (SSH "Connection closed", dd 0 bytes) while small flows work.
+# Looked like fail2ban; it was not. A/B/A-confirmed sole culprit = br-lan GRO;
+# everything else (incl. tailscale0's GSO/GRO accelerator) stays on.
+ethtool -K br-lan gro off 2>/dev/null
+logger -t ts-boot "mesh offload fix applied (br-lan gro off)"
 BOOTSCRIPT
 chmod +x "$POST_CFG"
 OK "Boot script written"
