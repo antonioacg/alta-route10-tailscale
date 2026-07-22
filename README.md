@@ -1,5 +1,21 @@
 # Alta Labs Route 10 + Tailscale
 
+> ## ⛔ SUPERSEDED (2026-07-22)
+>
+> **Alta now ships Tailscale natively in Route10 firmware** (the 2026-07 update
+> includes the `tailscale 1.98.4-1` package: `/usr/sbin/tailscaled` + a uci-driven
+> `/etc/init.d/tailscale`). This sideload approach is retired — running both is a
+> two-daemons-one-state conflict, and this repo's boot hook had a design flaw that
+> caused a real outage: it **reverted (deleted) all its firewall rules if a single
+> `ping -c1 8.8.8.8` failed** after start, and ISP paths that rate-limit ICMP to
+> anycast make that a coin flip on every config reapply.
+>
+> Note the native package is neither cloud-modeled nor rc.d-enabled (as of this
+> writing): you must configure `/etc/config/tailscale` and start it yourself, and
+> re-assert the `tailscale0` firewall accepts after every Alta config reapply.
+> See the successor integration (uci reconcile + firewall + self-heal) in
+> [`route10/scripts/tailscale-reconcile.sh`](https://github.com/antonioacg/route10).
+
 Mesh VPN with subnet routing and exit node support on the Alta Labs Route 10 router using [Tailscale](https://tailscale.com).
 
 ## What This Does
